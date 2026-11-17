@@ -743,23 +743,23 @@ def _display_track(satellite, request):
 
 def _footprints(instrument, orbit_track):
     """TATC footprint and boresight ground point at each display sample."""
+    from .cesium_geometry import boundary_lines, cesium_parts, needs_partition, part_rings
+
     # number_points counts points per side of a rectangle, or around an ellipse.
     shapes = instrument.compute_footprint(
         orbit_track, number_points=2 if instrument.is_rectangular else 16
     )
+    display = [part_rings(cesium_parts(shape)) for shape in shapes]
     centers = instrument.compute_footprint_center(orbit_track)
     return {
         "instrument": instrument.name,
         # A footprint crossing the antimeridian is split into several parts.
-        "parts": [
-            [
-                [[round(x, 3), round(y, 3)] for x, y, *_ in part.exterior.coords]
-                for part in getattr(shape, "geoms", [shape])
-            ]
-            for shape in shapes
-        ],
+        "parts": [[rings[0] for rings in polygons] for polygons in display],
+        "holes": [[rings[1:] for rings in polygons] for polygons in display],
+        "partitioned": [needs_partition(shape) for shape in shapes],
+        "boundaries": [boundary_lines(shape) if needs_partition(shape) else [] for shape in shapes],
         "centers": [
-            [round(float(lon), 3), round(float(lat), 3)]
+            [float(lon), float(lat)]
             for lon, lat in zip(centers.longitude.degrees, centers.latitude.degrees)
         ],
     }

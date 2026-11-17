@@ -1146,7 +1146,8 @@ test("ground-track dissolved polygons preserve holes and export GeoJSON", async 
     orbitOnly: true,
     editFixture: (data) => {
       data.instrument = {name: "Scanner"};
-      data.ground_area = area;
+      data.ground_area = structuredClone(area);
+      data.ground_area.features[0].cesium_parts = [area.features[0].geometry.coordinates];
       data.ui.view = "ground_track";
       data.request = {view: "ground_track", satellite_identifiers: ["25544"],
         start_time: data.scenario.start_time, duration: "1 hour", step_interval: "10 seconds",
@@ -1179,5 +1180,29 @@ test("ground-track dissolved polygons preserve holes and export GeoJSON", async 
     step.dispatchEvent(new dom.window.Event("input", {bubbles: true}));
     // The calculated request remains immutable until a server calculation returns.
     assert.equal(data.request.step_interval, "10 seconds");
+  } finally { dom.window.close(); }
+});
+
+
+test("a native polar footprint sequence keeps each sampled polygon intact", async () => {
+  const movie = JSON.parse(execFileSync(process.env.TATC_PYTHON || "python3", ["-c",
+    "import json; from tests.polar_fixtures import polar_movie; print(json.dumps(polar_movie()))"], {
+      cwd: root, env: {...process.env, PYTHONPATH: path.join(root,"apps/mcp-server")}, encoding:"utf8",
+  }));
+  const {dom, viewer} = await setup({editFixture: (data) => Object.assign(data,movie)});
+  try {
+    const polygons = viewer.entities.values.filter((e) => e.polygon);
+    assert.ok(polygons.length > 0);
+    for (const [stamp] of movie.tracks[0].samples) {
+      const time = Cesium.JulianDate.fromIso8601(stamp);
+      for (const entity of polygons) {
+        const hierarchy = entity.polygon.hierarchy.getValue(time);
+        if (!hierarchy) { assert.equal(entity.polygon.show.getValue(time),false); continue; }
+        assert.ok(Cesium.PolygonGeometry.createGeometry(new Cesium.PolygonGeometry({polygonHierarchy:hierarchy})));
+      }
+    }
+    const start = Cesium.JulianDate.fromIso8601(movie.scenario.start_time);
+    const between = Cesium.JulianDate.addSeconds(start,10,new Cesium.JulianDate());
+    assert.deepEqual(polygons[0].polygon.hierarchy.getValue(between),polygons[0].polygon.hierarchy.getValue(start));
   } finally { dom.window.close(); }
 });

@@ -32,8 +32,8 @@ The pane contains:
 - **Map:** CesiumJS 2D/3D views, satellite legend, orbit/ground-track/observation
   layers, and adjustable trail duration. Pointed instruments add a Footprints layer:
   the instantaneous footprint from TATC `PointedInstrument.compute_footprint` and a
-  boresight line from the satellite, sampled at the display step and interpolated
-  between samples. Cesium loads only when this view opens.
+  boresight line from the satellite, sampled at the display step. Footprint polygons use the nearest
+  native sample rather than interpolating longitude lists across polar topology changes. Cesium loads only when this view opens.
 - **Table:** computed values and individual events, with CSV export of the current
   table. Selecting an observation or gap seeks the shared clock to its midpoint, or
   to its viewing epoch for a pointed or conical instrument.
@@ -367,3 +367,10 @@ The existing ground-track limits remain 30 days, 2,000 samples and 1–3,600-sec
 sampling. These differ from the orbit and coverage views' limits. Reruns use
 `visualize(view="ground_track")`, preserving `step_interval`, `instrument` and
 `dissolve_orbits`. The numerical `generate_ground_track` tool is unchanged.
+
+
+Polar footprints retain native coordinate precision and are partitioned into
+longitude patches for Cesium triangulation when a polygon spans 180° or more.
+The patches have the same union as TAT-C's polygon, including any unobserved
+interior. Internal patch seams are not drawn as footprint boundaries. Scientific
+GeoJSON exports retain the original native polygons, not the display partitions.
